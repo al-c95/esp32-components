@@ -1,6 +1,6 @@
 # esp32-components
 
-A small collection of reusable components for ESP32 projects (ESP-IDF): I2C master helper, SNTP time synchronization helpers, and a simple WiFi helper.
+A small collection of reusable C++ components for ESP32 projects (ESP-IDF): I2C master, SNTP time synchronization, WiFi connectivity, and HTTP sensor-data transmission helpers.
 
 **Requirements:**
 - ESP-IDF (tested with recent releases)
@@ -71,6 +71,44 @@ wifi.connect("MySSID", "MyPassword");
 
 See the implementation in [WiFi/WiFi.cpp](WiFi/WiFi.cpp#L1).
 
+**sensor_transport:** A simple HTTP POST transmitter for sensor readings. `HttpPostTransmitter` implements `ISensorDataTransmitter` and serializes a map of named sensor values into a JSON object. Supported value types are `float`, `int`, and `int64_t`.
+
+Basic usage (after WiFi is connected):
+```cpp
+#include "HttpPostTransmitter.h"
+
+HttpPostTransmitter transmitter("http://192.168.1.104:3000/sensor-data/wind");
+
+std::map<std::string, SensorValue> values = {
+    {"timestampUtc", int64_t{1791608178}},
+    {"speed", 1.7f},
+    {"direction", 233}
+};
+
+bool ok = transmitter.transmit(values);
+```
+
+The transmitter sends `Content-Type: application/json` and returns `true` for an HTTP 2xx response, or `false` if the request fails or receives a non-2xx status. The caller is responsible for establishing network connectivity and obtaining valid timestamps.
+
+The component depends on ESP-IDF's `esp_http_client`. Its shared headers are `HttpPostTransmitter.h`, `ISensorDataTransmitter.h`, and `SensorReading.h`.
+
+See the implementation in [sensor_transport/HttpPostTransmitter.cpp](sensor_transport/HttpPostTransmitter.cpp#L1).
+
+**Using a component from this repository**
+
+Add the desired component to your project's `main/idf_component.yml`, for example:
+
+```yaml
+dependencies:
+  sensor_transport:
+    git: "https://github.com/al-c95/esp32-components"
+    path: "sensor_transport"
+    version: "master"
+```
+
+Then run `idf.py reconfigure` and `idf.py build`. You can add the other components in the same way, using their respective directory names as `path` values.
+
 **Notes**
 - These components are minimal helpers — adapt them to your project's error handling and event model.
+- The current `sensor_transport` implementation uses a fixed 256-byte buffer for its JSON payload, so long payloads may be truncated. This will be addressed in a later change.
 - Build and flash using ESP-IDF tooling as usual.
